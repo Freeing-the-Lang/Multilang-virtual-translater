@@ -1,8 +1,10 @@
-name: "🌐 Multilang Virtual Translater — Universal AST Prototype (v1.4)"
+name: "🌐 Multilang Virtual Translater — Universal AST Prototype (v1.5)"
 
 on:
   push:
     branches: [ main ]
+    tags:
+      - "v*"
   pull_request:
     types: [ closed ]
   workflow_dispatch:
@@ -14,18 +16,24 @@ permissions:
 
 concurrency:
   group: multilang-virtual-translater-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false  # ✅ 중복 실행도 허용 (취소 방지)
+
+defaults:
+  run:
+    shell: bash
+    timeout-minutes: 20
 
 jobs:
   build-test:
     name: "🧠 Build & Test Universal AST"
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false   # ✅ 한 OS 실패해도 나머지 계속 실행
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
-      - name: "📦 Checkout repository (auto-retry)"
+      - name: "📦 Checkout repository (safe auto-retry)"
         timeout-minutes: 5
         run: |
           set -e
@@ -39,7 +47,6 @@ jobs:
               sleep 10
             fi
           done
-        shell: bash
 
       - name: "🐍 Setup Python"
         uses: actions/setup-python@v5
@@ -50,13 +57,14 @@ jobs:
       - name: "⚙️ Install dependencies (auto-retry)"
         run: |
           set -e
+          echo "🔁 Upgrading pip..."
           for i in 1 2 3; do
-            python -m pip install --upgrade pip && break || { echo "Retry $i pip upgrade failed"; sleep 5; }
+            python -m pip install --upgrade pip && break || { echo "⚠️ Retry $i failed"; sleep 5; }
           done
+          echo "📦 Installing required packages..."
           for i in 1 2 3; do
-            pip install tree_sitter pytest && break || { echo "Retry $i install failed"; sleep 5; }
+            pip install tree_sitter pytest && break || { echo "⚠️ Retry $i failed"; sleep 5; }
           done
-        shell: bash
 
       - name: "🧩 Run AST tests"
         run: |
@@ -111,3 +119,23 @@ jobs:
           git add PROOFLEDGER.txt
           git commit -m "Update ProofLedger [auto]" || echo "No changes to commit"
           git push || echo "Push skipped (no changes)"
+
+  release:
+    name: "🚀 Auto Release (tag-based)"
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [build-test, proof-ledger]
+
+    steps:
+      - name: "📦 Checkout"
+        uses: actions/checkout@v4
+
+      - name: "🧾 Create Release"
+        uses: softprops/action-gh-release@v2
+        with:
+          files: multilang_logs.tar.gz
+          body: |
+            🔖 **Multilang Virtual Translater — Universal AST Snapshot**
+            - Version: ${{ github.ref_name }}
+            - Includes AST artifacts + ProofLedger hash
+            - Generated automatically via v1.5 workflow

@@ -1,4 +1,4 @@
-name: "🌐 Multilang Virtual Translater — Universal AST Prototype (v1.7)"
+name: "🌐 Multilang Virtual Translater — Universal AST Prototype (v1.8)"
 
 on:
   push:
@@ -83,14 +83,14 @@ jobs:
           mkdir -p artifacts
           echo "AST Log $(date)" > artifacts/ledger.txt
           cd artifacts
-          tar -czf ../multilang_logs.tar.gz .
+          tar -czf ../multilang_logs_${{ matrix.os }}.tar.gz .
         shell: bash
 
-      - name: "📤 Upload artifacts"
+      - name: "📤 Upload artifacts (OS-specific)"
         uses: actions/upload-artifact@v4
         with:
-          name: multilang-virtual-artifacts-${{ github.job }}-${{ github.run_id }}  # ✅ job+run_id로 고유화
-          path: multilang_logs.tar.gz
+          name: multilang-virtual-artifacts-${{ matrix.os }}-${{ github.job }}-${{ github.run_id }}
+          path: multilang_logs_${{ matrix.os }}.tar.gz
 
   proof-ledger:
     name: "🧾 ProofLedger Sync"
@@ -108,7 +108,9 @@ jobs:
         run: |
           echo "Multilang Virtual Translater ProofLedger" > PROOFLEDGER.txt
           echo "Timestamp:" $(date) >> PROOFLEDGER.txt
-          echo "SHA256:" $(sha256sum multilang_logs.tar.gz | cut -d' ' -f1) >> PROOFLEDGER.txt
+          echo "SHA256 (Ubuntu):" $(sha256sum multilang_logs_ubuntu-latest.tar.gz | cut -d' ' -f1 2>/dev/null || echo "N/A") >> PROOFLEDGER.txt
+          echo "SHA256 (macOS):" $(sha256sum multilang_logs_macos-latest.tar.gz | cut -d' ' -f1 2>/dev/null || echo "N/A") >> PROOFLEDGER.txt
+          echo "SHA256 (Windows):" $(sha256sum multilang_logs_windows-latest.tar.gz | cut -d' ' -f1 2>/dev/null || echo "N/A") >> PROOFLEDGER.txt
           cat PROOFLEDGER.txt
 
       - name: "🪣 Commit ProofLedger"
@@ -133,9 +135,13 @@ jobs:
       - name: "🧾 Create Release"
         uses: softprops/action-gh-release@v2
         with:
-          files: multilang_logs.tar.gz
+          files: |
+            multilang_logs_ubuntu-latest.tar.gz
+            multilang_logs_macos-latest.tar.gz
+            multilang_logs_windows-latest.tar.gz
+            PROOFLEDGER.txt
           body: |
             🔖 **Multilang Virtual Translater — Universal AST Snapshot**
             - Version: ${{ github.ref_name }}
-            - Includes AST artifacts + ProofLedger hash
-            - Generated automatically via v1.7 workflow
+            - Includes OS-specific AST logs & ProofLedger hashes
+            - Generated automatically via v1.8 workflow

@@ -1,4 +1,4 @@
-name: "🌐 Multilang Virtual Translater — Universal AST Prototype (v1.5)"
+name: "🌐 Multilang Virtual Translater — Universal AST Prototype (v1.6)"
 
 on:
   push:
@@ -16,12 +16,7 @@ permissions:
 
 concurrency:
   group: multilang-virtual-translater-${{ github.ref }}
-  cancel-in-progress: false  # ✅ 중복 실행도 허용 (취소 방지)
-
-defaults:
-  run:
-    shell: bash
-    timeout-minutes: 20
+  cancel-in-progress: false  # ✅ 중복 실행 허용 (취소 방지)
 
 jobs:
   build-test:
@@ -32,9 +27,10 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
 
+    timeout-minutes: 20   # ✅ 올바른 위치 (job 레벨)
+
     steps:
       - name: "📦 Checkout repository (safe auto-retry)"
-        timeout-minutes: 5
         run: |
           set -e
           echo "🔁 Attempting safe git checkout (max 3 retries)..."
@@ -47,6 +43,7 @@ jobs:
               sleep 10
             fi
           done
+        shell: bash
 
       - name: "🐍 Setup Python"
         uses: actions/setup-python@v5
@@ -65,6 +62,7 @@ jobs:
           for i in 1 2 3; do
             pip install tree_sitter pytest && break || { echo "⚠️ Retry $i failed"; sleep 5; }
           done
+        shell: bash
 
       - name: "🧩 Run AST tests"
         run: |
@@ -98,6 +96,7 @@ jobs:
     name: "🧾 ProofLedger Sync"
     runs-on: ubuntu-latest
     needs: build-test
+    timeout-minutes: 10
 
     steps:
       - name: "🧭 Checkout"
@@ -125,6 +124,7 @@ jobs:
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     needs: [build-test, proof-ledger]
+    timeout-minutes: 10
 
     steps:
       - name: "📦 Checkout"
@@ -138,4 +138,4 @@ jobs:
             🔖 **Multilang Virtual Translater — Universal AST Snapshot**
             - Version: ${{ github.ref_name }}
             - Includes AST artifacts + ProofLedger hash
-            - Generated automatically via v1.5 workflow
+            - Generated automatically via v1.6 workflow

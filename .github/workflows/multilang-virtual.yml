@@ -1,4 +1,4 @@
-name: "🌐 Multilang Virtual Translater — Universal AST Prototype (v1.0)"
+name: "🌐 Multilang Virtual Translater — Universal AST Prototype (v1.1)"
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     types: [ closed ]
   workflow_dispatch:
   schedule:
-    - cron: "0 0 * * *"  # 매일 자정 테스트
+    - cron: "0 0 * * *"
 
 permissions:
   contents: write
@@ -59,19 +59,21 @@ jobs:
         run: |
           mkdir -p artifacts
           echo "AST Log $(date)" > artifacts/ledger.txt
-          tar -czf artifacts/multilang_logs.tar.gz artifacts
+          cd artifacts
+          tar -czf ../multilang_logs.tar.gz .
         shell: bash
 
       - name: "📤 Upload artifacts"
         uses: actions/upload-artifact@v4
         with:
           name: multilang-virtual-artifacts
-          path: artifacts/
+          path: multilang_logs.tar.gz
 
   proof-ledger:
     name: "🧾 ProofLedger Sync"
     runs-on: ubuntu-latest
     needs: build-test
+
     steps:
       - name: "🧭 Checkout"
         uses: actions/checkout@v4
@@ -79,7 +81,8 @@ jobs:
       - name: "📜 Generate ProofLedger"
         run: |
           echo "Multilang Virtual Translater ProofLedger" > PROOFLEDGER.txt
-          echo "SHA256:" $(sha256sum artifacts/multilang_logs.tar.gz | cut -d' ' -f1) >> PROOFLEDGER.txt
+          echo "Timestamp:" $(date) >> PROOFLEDGER.txt
+          echo "SHA256:" $(sha256sum multilang_logs.tar.gz | cut -d' ' -f1) >> PROOFLEDGER.txt
           cat PROOFLEDGER.txt
 
       - name: "🪣 Commit ProofLedger"

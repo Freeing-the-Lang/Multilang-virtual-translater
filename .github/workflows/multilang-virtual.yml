@@ -1,4 +1,4 @@
-name: "🌐 Multilang Virtual Translater — Universal AST Prototype (v1.1)"
+name: "🌐 Multilang Virtual Translater — Universal AST Prototype (v1.2)"
 
 on:
   push:
@@ -36,10 +36,24 @@ jobs:
           python-version: "3.12"
           check-latest: true
 
-      - name: "⚙️ Install dependencies"
+      - name: "⚙️ Install dependencies (auto-retry)"
         run: |
-          python -m pip install --upgrade pip
-          pip install tree_sitter pytest
+          set -e
+          echo "🔁 Upgrading pip (max 3 retries)..."
+          for i in 1 2 3; do
+            python -m pip install --upgrade pip && break || {
+              echo "⚠️ Retry $i failed, waiting 5s..."
+              sleep 5
+            }
+          done
+          echo "📦 Installing packages..."
+          for i in 1 2 3; do
+            pip install tree_sitter pytest && break || {
+              echo "⚠️ Retry $i failed, waiting 5s..."
+              sleep 5
+            }
+          done
+        shell: bash
 
       - name: "🧩 Run AST tests"
         run: |
@@ -90,5 +104,5 @@ jobs:
           git config --global user.name "github-actions"
           git config --global user.email "actions@github.com"
           git add PROOFLEDGER.txt
-          git commit -m "Update ProofLedger [auto]"
-          git push
+          git commit -m "Update ProofLedger [auto]" || echo "No changes to commit"
+          git push || echo "Push skipped (no changes)"

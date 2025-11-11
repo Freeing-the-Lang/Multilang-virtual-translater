@@ -1,4 +1,4 @@
-name: "🌐 Multilang Virtual Translater — Universal AST Prototype (v1.2)"
+name: "🌐 Multilang Virtual Translater — Universal AST Prototype (v1.3)"
 
 on:
   push:
@@ -80,7 +80,7 @@ jobs:
       - name: "📤 Upload artifacts"
         uses: actions/upload-artifact@v4
         with:
-          name: multilang-virtual-artifacts
+          name: multilang-virtual-artifacts-${{ github.run_id }}
           path: multilang_logs.tar.gz
 
   proof-ledger:

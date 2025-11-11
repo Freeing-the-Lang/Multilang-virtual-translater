@@ -1,4 +1,4 @@
-name: "🌐 Multilang Virtual Translater — Universal AST Prototype (v1.8)"
+name: "🌐 Multilang Virtual Translater — Universal AST Prototype (v1.9)"
 
 on:
   push:
@@ -31,6 +31,7 @@ jobs:
 
     steps:
       - name: "📦 Checkout repository (safe auto-retry)"
+        shell: bash
         run: |
           set -e
           echo "🔁 Attempting safe git checkout (max 3 retries)..."
@@ -43,7 +44,6 @@ jobs:
               sleep 10
             fi
           done
-        shell: bash
 
       - name: "🐍 Setup Python"
         uses: actions/setup-python@v5
@@ -52,6 +52,7 @@ jobs:
           check-latest: true
 
       - name: "⚙️ Install dependencies (auto-retry)"
+        shell: bash
         run: |
           set -e
           echo "🔁 Upgrading pip..."
@@ -62,35 +63,42 @@ jobs:
           for i in 1 2 3; do
             pip install tree_sitter pytest && break || { echo "⚠️ Retry $i failed"; sleep 5; }
           done
-        shell: bash
 
-      - name: "🧩 Run AST tests"
+      - name: "🧩 Run AST tests & Save JSON"
+        shell: bash
         run: |
-          mkdir -p tests
+          mkdir -p tests artifacts
           echo 'def add(a,b): return a+b' > tests/sample.py
           python - <<'EOF'
+          import json
           from parsers.parser_python import PythonParser
           from generators.generator_python import PythonGenerator
+
           code = open("tests/sample.py").read()
           root = PythonParser().parse(code)
           out = PythonGenerator().generate(root)
+
           print("Generated:\n", out)
+          with open("artifacts/universal_ast.json", "w") as f:
+              json.dump(root.to_dict(), f, indent=2)
           EOF
 
       - name: "🪵 Archive logs & AST output"
         if: always()
+        shell: bash
         run: |
-          mkdir -p artifacts
           echo "AST Log $(date)" > artifacts/ledger.txt
           cd artifacts
           tar -czf ../multilang_logs_${{ matrix.os }}.tar.gz .
-        shell: bash
+          cd ..
 
       - name: "📤 Upload artifacts (OS-specific)"
         uses: actions/upload-artifact@v4
         with:
           name: multilang-virtual-artifacts-${{ matrix.os }}-${{ github.job }}-${{ github.run_id }}
-          path: multilang_logs_${{ matrix.os }}.tar.gz
+          path: |
+            multilang_logs_${{ matrix.os }}.tar.gz
+            artifacts/universal_ast.json
 
   proof-ledger:
     name: "🧾 ProofLedger Sync"
@@ -105,15 +113,18 @@ jobs:
           fetch-depth: 1
 
       - name: "📜 Generate ProofLedger"
+        shell: bash
         run: |
           echo "Multilang Virtual Translater ProofLedger" > PROOFLEDGER.txt
           echo "Timestamp:" $(date) >> PROOFLEDGER.txt
-          echo "SHA256 (Ubuntu):" $(sha256sum multilang_logs_ubuntu-latest.tar.gz | cut -d' ' -f1 2>/dev/null || echo "N/A") >> PROOFLEDGER.txt
-          echo "SHA256 (macOS):" $(sha256sum multilang_logs_macos-latest.tar.gz | cut -d' ' -f1 2>/dev/null || echo "N/A") >> PROOFLEDGER.txt
-          echo "SHA256 (Windows):" $(sha256sum multilang_logs_windows-latest.tar.gz | cut -d' ' -f1 2>/dev/null || echo "N/A") >> PROOFLEDGER.txt
+          for os in ubuntu-latest macos-latest windows-latest; do
+            file="multilang_logs_${os}.tar.gz"
+            [ -f "$file" ] && echo "SHA256 ($os): $(sha256sum $file | cut -d' ' -f1)" >> PROOFLEDGER.txt || echo "SHA256 ($os): N/A" >> PROOFLEDGER.txt
+          done
           cat PROOFLEDGER.txt
 
       - name: "🪣 Commit ProofLedger"
+        shell: bash
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "actions@github.com"
@@ -139,9 +150,10 @@ jobs:
             multilang_logs_ubuntu-latest.tar.gz
             multilang_logs_macos-latest.tar.gz
             multilang_logs_windows-latest.tar.gz
+            artifacts/universal_ast.json
             PROOFLEDGER.txt
           body: |
             🔖 **Multilang Virtual Translater — Universal AST Snapshot**
             - Version: ${{ github.ref_name }}
-            - Includes OS-specific AST logs & ProofLedger hashes
-            - Generated automatically via v1.8 workflow
+            - Includes OS-specific AST logs + Universal AST JSON + ProofLedger hashes
+            - Generated automatically via v1.9 workflow

@@ -1,4 +1,4 @@
-name: "🌐 Multilang Virtual Translater — Universal AST Prototype (v1.6)"
+name: "🌐 Multilang Virtual Translater — Universal AST Prototype (v1.7)"
 
 on:
   push:
@@ -16,18 +16,18 @@ permissions:
 
 concurrency:
   group: multilang-virtual-translater-${{ github.ref }}
-  cancel-in-progress: false  # ✅ 중복 실행 허용 (취소 방지)
+  cancel-in-progress: false  # ✅ 중복 실행 허용
 
 jobs:
   build-test:
     name: "🧠 Build & Test Universal AST"
     runs-on: ${{ matrix.os }}
     strategy:
-      fail-fast: false   # ✅ 한 OS 실패해도 나머지 계속 실행
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
 
-    timeout-minutes: 20   # ✅ 올바른 위치 (job 레벨)
+    timeout-minutes: 20
 
     steps:
       - name: "📦 Checkout repository (safe auto-retry)"
@@ -89,7 +89,7 @@ jobs:
       - name: "📤 Upload artifacts"
         uses: actions/upload-artifact@v4
         with:
-          name: multilang-virtual-artifacts-${{ github.run_id }}
+          name: multilang-virtual-artifacts-${{ github.job }}-${{ github.run_id }}  # ✅ job+run_id로 고유화
           path: multilang_logs.tar.gz
 
   proof-ledger:
@@ -138,4 +138,4 @@ jobs:
             🔖 **Multilang Virtual Translater — Universal AST Snapshot**
             - Version: ${{ github.ref_name }}
             - Includes AST artifacts + ProofLedger hash
-            - Generated automatically via v1.6 workflow
+            - Generated automatically via v1.7 workflow

@@ -1,4 +1,4 @@
-name: "🌐 Multilang Virtual Translater — Universal AST Prototype (v1.3)"
+name: "🌐 Multilang Virtual Translater — Universal AST Prototype (v1.4)"
 
 on:
   push:
@@ -25,10 +25,21 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
-      - name: "📦 Checkout repository"
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - name: "📦 Checkout repository (auto-retry)"
+        timeout-minutes: 5
+        run: |
+          set -e
+          echo "🔁 Attempting safe git checkout (max 3 retries)..."
+          for i in 1 2 3; do
+            if git clone --recursive https://github.com/${{ github.repository }} .; then
+              echo "✅ Checkout successful."
+              break
+            else
+              echo "⚠️ Retry $i failed. Waiting 10s..."
+              sleep 10
+            fi
+          done
+        shell: bash
 
       - name: "🐍 Setup Python"
         uses: actions/setup-python@v5
@@ -39,19 +50,11 @@ jobs:
       - name: "⚙️ Install dependencies (auto-retry)"
         run: |
           set -e
-          echo "🔁 Upgrading pip (max 3 retries)..."
           for i in 1 2 3; do
-            python -m pip install --upgrade pip && break || {
-              echo "⚠️ Retry $i failed, waiting 5s..."
-              sleep 5
-            }
+            python -m pip install --upgrade pip && break || { echo "Retry $i pip upgrade failed"; sleep 5; }
           done
-          echo "📦 Installing packages..."
           for i in 1 2 3; do
-            pip install tree_sitter pytest && break || {
-              echo "⚠️ Retry $i failed, waiting 5s..."
-              sleep 5
-            }
+            pip install tree_sitter pytest && break || { echo "Retry $i install failed"; sleep 5; }
           done
         shell: bash
 
@@ -91,6 +94,8 @@ jobs:
     steps:
       - name: "🧭 Checkout"
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
       - name: "📜 Generate ProofLedger"
         run: |

@@ -1,4 +1,4 @@
-name: "🌐 Multilang Virtual Translater — Universal AST Prototype (v1.9)"
+name: "🌐 Multilang Virtual Translater — Universal AST Prototype (v1.9.1)"
 
 on:
   push:
@@ -16,7 +16,7 @@ permissions:
 
 concurrency:
   group: multilang-virtual-translater-${{ github.ref }}
-  cancel-in-progress: false  # ✅ 중복 실행 허용
+  cancel-in-progress: false
 
 jobs:
   build-test:
@@ -30,45 +30,25 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      - name: "📦 Checkout repository (safe auto-retry)"
-        shell: bash
-        run: |
-          set -e
-          echo "🔁 Attempting safe git checkout (max 3 retries)..."
-          for i in 1 2 3; do
-            if git clone --recursive https://github.com/${{ github.repository }} .; then
-              echo "✅ Checkout successful."
-              break
-            else
-              echo "⚠️ Retry $i failed. Waiting 10s..."
-              sleep 10
-            fi
-          done
+      - uses: actions/checkout@v4
 
-      - name: "🐍 Setup Python"
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          check-latest: true
 
-      - name: "⚙️ Install dependencies (auto-retry)"
+      - name: Install deps
         shell: bash
         run: |
-          set -e
-          echo "🔁 Upgrading pip..."
-          for i in 1 2 3; do
-            python -m pip install --upgrade pip && break || { echo "⚠️ Retry $i failed"; sleep 5; }
-          done
-          echo "📦 Installing required packages..."
-          for i in 1 2 3; do
-            pip install tree_sitter pytest && break || { echo "⚠️ Retry $i failed"; sleep 5; }
-          done
+          pip install --upgrade pip
+          pip install tree_sitter pytest
 
-      - name: "🧩 Run AST tests & Save JSON"
+      - name: Run AST & Save JSON
         shell: bash
         run: |
           mkdir -p tests artifacts
           echo 'def add(a,b): return a+b' > tests/sample.py
+
           python - <<'EOF'
           import json
           from parsers.parser_python import PythonParser
@@ -78,82 +58,85 @@ jobs:
           root = PythonParser().parse(code)
           out = PythonGenerator().generate(root)
 
-          print("Generated:\n", out)
           with open("artifacts/universal_ast.json", "w") as f:
               json.dump(root.to_dict(), f, indent=2)
           EOF
 
-      - name: "🪵 Archive logs & AST output"
-        if: always()
+      - name: Archive logs
         shell: bash
         run: |
           echo "AST Log $(date)" > artifacts/ledger.txt
-          cd artifacts
-          tar -czf ../multilang_logs_${{ matrix.os }}.tar.gz .
-          cd ..
+          tar -czf multilang_logs_${{ matrix.os }}.tar.gz artifacts
 
-      - name: "📤 Upload artifacts (OS-specific)"
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: multilang-virtual-artifacts-${{ matrix.os }}-${{ github.job }}-${{ github.run_id }}
+          name: logs-${{ matrix.os }}
           path: |
             multilang_logs_${{ matrix.os }}.tar.gz
             artifacts/universal_ast.json
+
 
   proof-ledger:
     name: "🧾 ProofLedger Sync"
     runs-on: ubuntu-latest
     needs: build-test
-    timeout-minutes: 10
 
     steps:
-      - name: "🧭 Checkout"
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
+      - uses: actions/checkout@v4
 
-      - name: "📜 Generate ProofLedger"
+      - name: Download all logs
+        uses: actions/download-artifact@v4
+        with:
+          path: downloaded
+
+      - name: Generate ProofLedger
         shell: bash
         run: |
           echo "Multilang Virtual Translater ProofLedger" > PROOFLEDGER.txt
-          echo "Timestamp:" $(date) >> PROOFLEDGER.txt
-          for os in ubuntu-latest macos-latest windows-latest; do
-            file="multilang_logs_${os}.tar.gz"
-            [ -f "$file" ] && echo "SHA256 ($os): $(sha256sum $file | cut -d' ' -f1)" >> PROOFLEDGER.txt || echo "SHA256 ($os): N/A" >> PROOFLEDGER.txt
-          done
-          cat PROOFLEDGER.txt
+          echo "Timestamp: $(date)" >> PROOFLEDGER.txt
 
-      - name: "🪣 Commit ProofLedger"
+          for os in ubuntu-latest macos-latest windows-latest; do
+            file=$(find downloaded -name "multilang_logs_${os}.tar.gz" -print -quit)
+            if [ -f "$file" ]; then
+              echo "SHA256 ($os): $(sha256sum "$file" | cut -d' ' -f1)" >> PROOFLEDGER.txt
+            else
+              echo "SHA256 ($os): N/A" >> PROOFLEDGER.txt
+            fi
+          done
+
+      - name: Commit ProofLedger
         shell: bash
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "actions@github.com"
           git add PROOFLEDGER.txt
-          git commit -m "Update ProofLedger [auto]" || echo "No changes to commit"
-          git push || echo "Push skipped (no changes)"
+          git commit -m "Update ProofLedger [auto]" || true
+          git push || true
+
 
   release:
-    name: "🚀 Auto Release (tag-based)"
+    name: "🚀 Auto Release"
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     needs: [build-test, proof-ledger]
-    timeout-minutes: 10
 
     steps:
-      - name: "📦 Checkout"
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: "🧾 Create Release"
-        uses: softprops/action-gh-release@v2
+      - uses: actions/download-artifact@v4
+        with:
+          path: downloaded
+
+      - uses: softprops/action-gh-release@v2
         with:
           files: |
-            multilang_logs_ubuntu-latest.tar.gz
-            multilang_logs_macos-latest.tar.gz
-            multilang_logs_windows-latest.tar.gz
-            artifacts/universal_ast.json
+            downloaded/**/multilang_logs_ubuntu-latest.tar.gz
+            downloaded/**/multilang_logs_macos-latest.tar.gz
+            downloaded/**/multilang_logs_windows-latest.tar.gz
+            downloaded/**/universal_ast.json
             PROOFLEDGER.txt
           body: |
-            🔖 **Multilang Virtual Translater — Universal AST Snapshot**
+            🔖 Multilang Virtual Translater — Universal AST Snapshot
             - Version: ${{ github.ref_name }}
-            - Includes OS-specific AST logs + Universal AST JSON + ProofLedger hashes
-            - Generated automatically via v1.9 workflow
+            - Includes 3OS logs + AST JSON + ProofLedger
